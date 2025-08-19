@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TON WebSocket Client Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .status.connected { background-color: #d4edda; color: #155724; }
+        .status.disconnected { background-color: #f8d7da; color: #721c24; }
+        .status.connecting { background-color: #fff3cd; color: #856404; }
+
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .log {
+            height: 400px;
+            overflow-y: scroll;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f8f9fa;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+        .log-entry.sent { color: #007bff; }
+        .log-entry.received { color: #28a745; }
+        .log-entry.error { color: #dc3545; }
+
+        .subscriptions {
+            margin-top: 20px;
+        }
+        .subscription-item {
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin: 5px 0;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .subscription-item button {
+            background-color: #dc3545;
+            font-size: 12px;
+            padding: 5px 10px;
+        }
+
+        .trace-display {
+            background-color: #f1f3f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .trace-header {
+            font-weight: bold;
+            color: #1a73e8;
+            margin-bottom: 10px;
+        }
+        .trace-details {
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 TON WebSocket Service Demo</h1>
+
+        <div id="connection-status" class="status disconnected">
+            Отключено
+        </div>
+
+        <div>
+            <input type="text" id="server-url" placeholder="ws://localhost:3000/ws" value="ws://localhost:3000/ws">
+            <button id="connect-btn" onclick="toggleConnection()">Подключиться</button>
+            <button id="ping-btn" onclick="sendPing()" disabled>Ping</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📡 Подписки на адреса</h2>
+
+        <div>
+            <input type="text" id="address-input" placeholder="Введите TON адрес" 
+                   value="EQCr6U28flePBIpdQYwmMkJJD2JAwZxeRE8C0RoxVJeEb-CF">
+            <button id="subscribe-btn" onclick="subscribeToAddress()" disabled>Подписаться</button>
+        </div>
+
+        <div class="subscriptions">
+            <h3>Активные подписки:</h3>
+            <div id="subscriptions-list"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📊 Последние трейсы транзакций</h2>
+        <div id="traces-container"></div>
+    </div>
+
+    <div class="container">
+        <h2>📝 Лог сообщений</h2>
+        <div id="log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <script>
+        let ws = null;
+        let subscriptions = new Map(); // subscription_id -> {id, address}
+
+        function updateConnectionStatus(status, message) {
+            const statusElement = document.getElementById('connection-status');
+            statusElement.className = `status ${status}`;
+            statusElement.textContent = message;
+
+            const connectBtn = document.getElementById('connect-btn');
+            const pingBtn = document.getElementById('ping-btn');
+            const subscribeBtn = document.getElementById('subscribe-btn');
+
+            if (status === 'connected') {
+                connectBtn.textContent = 'Отключиться';
+                pingBtn.disabled = false;
+                subscribeBtn.disabled = false;
+            } else {
+                connectBtn.textContent = 'Подключиться';
+                pingBtn.disabled = true;
+                subscribeBtn.disabled = true;
+            }
+        }
+
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function toggleConnection() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            } else {
+                connect();
+            }
+        }
+
+        function connect() {
+            const url = document.getElementById('server-url').value;
+
+            updateConnectionStatus('connecting', 'Подключение...');
+            log('Подключение к ' + url, 'info');
+
+            ws = new WebSocket(url);
+
+            ws.onopen = function() {
+                updateConnectionStatus('connected', 'Подключено');
+                log('WebSocket соединение установлено', 'info');
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const message = JSON.parse(event.data);
+                    handleServerMessage(message);
+                    log('⬅️ ' + JSON.stringify(message, null, 2), 'received');
+                } catch (e) {
+                    log('❌ Ошибка парсинга сообщения: ' + event.data, 'error');
+                }
+            };
+
+            ws.onerror = function(error) {
+                log('❌ WebSocket ошибка: ' + error, 'error');
+            };
+
+            ws.onclose = function() {
+                updateConnectionStatus('disconnected', 'Отключено');
+                log('WebSocket соединение закрыто', 'info');
+                subscriptions.clear();
+                updateSubscriptionsList();
+            };
+        }
+
+        function handleServerMessage(message) {
+            switch(message.type) {
+                case 'SubscriptionConfirm':
+                    subscriptions.set(message.subscription_id, {
+                        id: message.subscription_id,
+                        address: message.address
+                    });
+                    updateSubscriptionsList();
+                    log(`✅ Подписка создана: ${message.address}`, 'info');
+                    break;
+
+                case 'UnsubscriptionConfirm':
+                    subscriptions.delete(message.subscription_id);
+                    updateSubscriptionsList();
+                    log(`❌ Подписка удалена: ${message.subscription_id}`, 'info');
+                    break;
+
+                case 'TransactionTrace':
+                    displayTransactionTrace(message);
+                    log(`🔄 Новый трейс транзакции для ${message.address}`, 'info');
+                    break;
+
+                case 'Error':
+                    log(`❌ Ошибка: ${message.message}`, 'error');
+                    break;
+
+                case 'Pong':
+                    log('🏓 Pong получен', 'info');
+                    break;
+
+                default:
+                    log(`❓ Неизвестный тип сообщения: ${message.type}`, 'error');
+            }
+        }
+
+        function sendMessage(message) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(message));
+                log('➡️ ' + JSON.stringify(message, null, 2), 'sent');
+            } else {
+                log('❌ WebSocket не подключен', 'error');
+            }
+        }
+
+        function sendPing() {
+            sendMessage({ type: 'Ping' });
+        }
+
+        function subscribeToAddress() {
+            const address = document.getElementById('address-input').value.trim();
+
+            if (!address) {
+                log('❌ Введите TON адрес', 'error');
+                return;
+            }
+
+            // Проверяем, не подписаны ли мы уже на этот адрес
+            for (let sub of subscriptions.values()) {
+                if (sub.address === address) {
+                    log('⚠️ Уже подписаны на этот адрес', 'error');
+                    return;
+                }
+            }
+
+            sendMessage({
+                type: 'Subscribe',
+                address: address
+            });
+        }
+
+        function unsubscribe(subscriptionId) {
+            sendMessage({
+                type: 'Unsubscribe',
+                subscription_id: subscriptionId
+            });
+        }
+
+        function updateSubscriptionsList() {
+            const container = document.getElementById('subscriptions-list');
+
+            if (subscriptions.size === 0) {
+                container.innerHTML = '<p>Нет активных подписок</p>';
+                return;
+            }
+
+            let html = '';
+            for (let [id, sub] of subscriptions) {
+                html += `
+                    <div class="subscription-item">
+                        <strong>Адрес:</strong> ${sub.address}<br>
+                        <strong>ID:</strong> ${sub.id}<br>
+                        <button onclick="unsubscribe('${sub.id}')">Отписаться</button>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function displayTransactionTrace(message) {
+            const container = document.getElementById('traces-container');
+            const trace = message.trace;
+
+            const traceElement = document.createElement('div');
+            traceElement.className = 'trace-display';
+
+            const header = document.createElement('div');
+            header.className = 'trace-header';
+            header.textContent = `Новый трейс для ${message.address}`;
+
+            const details = document.createElement('div');
+            details.className = 'trace-details';
+            details.textContent = JSON.stringify(trace, null, 2);
+
+            traceElement.appendChild(header);
+            traceElement.appendChild(details);
+
+            // Вставляем в начало контейнера
+            container.insertBefore(traceElement, container.firstChild);
+
+            // Ограничиваем количество отображаемых трейсов
+            while (container.children.length > 10) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // Автоподключение при загрузке страницы
+        window.addEventListener('load', function() {
+            // Можно раскомментировать для автоматического подключения
+            // connect();
+        });
+    </script>
+</body>
+</html>
