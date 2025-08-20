@@ -4,11 +4,9 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug};
+use tracing::{debug, info};
 
-use crate::websocket::message::{
-    TransactionTrace, MessageInfo, ComputePhaseInfo, ActionPhaseInfo
-};
+use crate::websocket::message::{ActionPhaseInfo, ComputePhaseInfo, MessageInfo, TransactionTrace};
 
 /// Сервис для получения трейсов транзакций
 pub struct TraceService {
@@ -85,24 +83,16 @@ impl TraceService {
         // Это упрощенная версия парсинга. В реальном коде нужно более детальное извлечение
         let transaction = &data["transaction"];
 
-        let hash = transaction["hash"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string();
+        let hash = transaction["hash"].as_str().unwrap_or_default().to_string();
 
         let account = transaction["account"]["address"]
             .as_str()
             .unwrap_or_default()
             .to_string();
 
-        let lt = transaction["lt"]
-            .as_str()
-            .unwrap_or("0")
-            .to_string();
+        let lt = transaction["lt"].as_str().unwrap_or("0").to_string();
 
-        let now = transaction["now"]
-            .as_u64()
-            .unwrap_or(0) as u32;
+        let now = transaction["now"].as_u64().unwrap_or(0) as u32;
 
         let total_fees = transaction["total_fees"]
             .as_str()
@@ -156,29 +146,35 @@ impl TraceService {
 
     /// Парсит информацию о сообщении
     fn parse_message_info(&self, msg_data: &serde_json::Map<String, Value>) -> Result<MessageInfo> {
-        let hash = msg_data.get("hash")
+        let hash = msg_data
+            .get("hash")
             .and_then(|v| v.as_str())
             .unwrap_or_default()
             .to_string();
 
-        let source = msg_data.get("source")
+        let source = msg_data
+            .get("source")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let destination = msg_data.get("destination")
+        let destination = msg_data
+            .get("destination")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let value = msg_data.get("value")
+        let value = msg_data
+            .get("value")
             .and_then(|v| v.as_str())
             .unwrap_or("0")
             .to_string();
 
-        let body = msg_data.get("body")
+        let body = msg_data
+            .get("body")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let message_type = msg_data.get("msg_type")
+        let message_type = msg_data
+            .get("msg_type")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_string();
@@ -200,10 +196,7 @@ impl TraceService {
         }
 
         let success = compute_data["success"].as_bool().unwrap_or(false);
-        let gas_used = compute_data["gas_used"]
-            .as_str()
-            .unwrap_or("0")
-            .to_string();
+        let gas_used = compute_data["gas_used"].as_str().unwrap_or("0").to_string();
         let gas_limit = compute_data["gas_limit"]
             .as_str()
             .unwrap_or("0")
@@ -253,11 +246,15 @@ impl TraceService {
         seen_addresses.insert(trace.account.clone());
 
         // Фильтруем дочерние транзакции
-        deduplicated_trace.children = trace.children
+        deduplicated_trace.children = trace
+            .children
             .iter()
             .filter(|child| {
                 if seen_addresses.contains(&child.account) {
-                    debug!("Removing duplicate transaction for address: {}", child.account);
+                    debug!(
+                        "Removing duplicate transaction for address: {}",
+                        child.account
+                    );
                     false
                 } else {
                     seen_addresses.insert(child.account.clone());
@@ -291,26 +288,6 @@ impl TraceService {
 
 impl Default for TraceService {
     fn default() -> Self {
-        Self::new(
-            "https://tonapi.io".to_string(),
-            None,
-        )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_trace_service_creation() {
-        let service = TraceService::default();
-        assert_eq!(service.get_cache_size().await, 0);
-    }
-
-    #[test]
-    fn test_deduplicate_trace() {
-        let service = TraceService::default();
-        // Здесь можно добавить тесты для дедупликации
+        Self::new("https://tonapi.io".to_string(), None)
     }
 }

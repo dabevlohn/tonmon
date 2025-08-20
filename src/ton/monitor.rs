@@ -60,6 +60,8 @@ impl TransactionMonitor {
         loop {
             ticker.tick().await;
 
+            debug!("Let's check transactions!");
+
             if let Err(e) = self.check_transactions().await {
                 error!("Error checking transactions: {}", e);
             }

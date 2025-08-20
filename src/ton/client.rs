@@ -269,15 +269,14 @@ impl TonService {
 
         self.with_connection_retry(|client| {
             let addr = ton_address.clone();
-            let client0 = (*client).clone();
-            async move { Self::try_get_transactions_internal(&client0, &addr, from_lt, limit).await }
+            async move { Self::try_get_transactions_internal(client, &addr, from_lt, limit).await }
         })
         .await
     }
 
     /// Внутренний метод для получения транзакций
     async fn try_get_transactions_internal(
-        client: &TonClient,
+        client: Arc<TonClient>,
         ton_address: &TonAddress,
         from_lt: Option<u64>,
         limit: u32,
