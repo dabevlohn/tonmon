@@ -11,9 +11,7 @@ pub enum ClientMessage {
         subscription_id: Option<String>,
     },
     /// Отписка от обновлений адреса
-    Unsubscribe {
-        subscription_id: String,
-    },
+    Unsubscribe { subscription_id: String },
     /// Пинг для проверки соединения
     Ping,
 }
@@ -28,14 +26,12 @@ pub enum ServerMessage {
         address: String,
     },
     /// Подтверждение отписки
-    UnsubscriptionConfirm {
-        subscription_id: String,
-    },
+    UnsubscriptionConfirm { subscription_id: String },
     /// Новая транзакция и её трейс
     TransactionTrace {
         subscription_id: String,
         address: String,
-        trace: TransactionTrace,
+        trace: Box<TransactionTrace>,
     },
     /// Ошибка
     Error {
@@ -94,11 +90,17 @@ pub struct ActionPhaseInfo {
 
 impl ServerMessage {
     pub fn error(message: String, subscription_id: Option<String>) -> Self {
-        Self::Error { message, subscription_id }
+        Self::Error {
+            message,
+            subscription_id,
+        }
     }
 
     pub fn subscription_confirm(address: String) -> Self {
         let subscription_id = Uuid::new_v4().to_string();
-        Self::SubscriptionConfirm { subscription_id, address }
+        Self::SubscriptionConfirm {
+            subscription_id,
+            address,
+        }
     }
 }

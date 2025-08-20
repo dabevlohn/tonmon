@@ -13,15 +13,4 @@ pub enum ServiceError {
 
     #[error("HTTP client error: {0}")]
     HttpClient(#[from] reqwest::Error),
-
-    #[error("Invalid address: {0}")]
-    InvalidAddress(String),
-
-    #[error("Subscription not found: {0}")]
-    SubscriptionNotFound(String),
-
-    #[error("Transaction trace not found: {0}")]
-    TransactionTraceNotFound(String),
 }
-
-pub type Result<T> = std::result::Result<T, ServiceError>;

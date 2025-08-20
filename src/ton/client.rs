@@ -6,7 +6,7 @@ use tracing::{debug, error, info, warn};
 
 // Обновленные импорты для актуального API tonlib-rs
 use tonlib_client::client::{TonClient, TonClientInterface};
-use tonlib_core::{TonAddress, TonHash};
+use tonlib_core::TonAddress;
 
 /// Конфигурация для TON клиента с множественными endpoints
 pub struct TonClientConfig {
@@ -262,14 +262,12 @@ impl TonService {
     pub async fn get_transactions(
         &self,
         address: &str,
-        from_lt: Option<u64>,
-        limit: u32,
     ) -> Result<Vec<tonlib_client::tl::RawTransaction>> {
         let ton_address = self.validate_address(address)?;
 
         self.with_connection_retry(|client| {
             let addr = ton_address.clone();
-            async move { Self::try_get_transactions_internal(client, &addr, from_lt, limit).await }
+            async move { Self::try_get_transactions_internal(client, &addr).await }
         })
         .await
     }
@@ -278,8 +276,6 @@ impl TonService {
     async fn try_get_transactions_internal(
         client: Arc<TonClient>,
         ton_address: &TonAddress,
-        from_lt: Option<u64>,
-        limit: u32,
     ) -> Result<Vec<tonlib_client::tl::RawTransaction>> {
         // Получаем состояние аккаунта
         let account_state = match client.get_account_state(ton_address).await {
@@ -303,26 +299,9 @@ impl TonService {
             shards.shards
         );
         let tx_last = client
-            .get_raw_transactions(&ton_address, &account_state.last_transaction_id)
+            .get_raw_transactions(ton_address, &account_state.last_transaction_id)
             .await?;
-        // info!("Last TX: {:?}", tx_last.transactions);
 
-        // let transaction_id = tonlib_client::tl::InternalTransactionId {
-        //     hash: vec![0u8; 32],
-        //     // hash: account_state.last_transaction_id.hash,
-        //     lt: from_lt.unwrap_or(0) as i64,
-        // };
-
-        // let raw_transactions = client
-        //     .get_raw_transactions_v2(ton_address, &transaction_id, 15, false)
-        //     .await
-        //     .map_err(|e| anyhow::anyhow!("Failed to get transactions: {}", e))?;
-
-        if let Some(tx0) = tx_last.transactions.first() {
-            info!("RawTransaction: {:?}", tx0.transaction_id);
-        }
-
-        // Ok(raw_transactions.transactions)
         Ok(tx_last.transactions)
     }
 

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::ton::monitor::TransactionEvent;
 use crate::ton::trace::TraceService;
-use crate::websocket::message::{ServerMessage, TransactionTrace};
+use crate::websocket::message::ServerMessage;
 
 /// Информация о подписке
 #[derive(Debug, Clone)]
@@ -70,7 +70,7 @@ impl SubscriptionManager {
         // Добавляем в индекс по адресам
         self.address_subscriptions
             .entry(address.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(subscription_id.clone());
 
         // Отправляем событие для добавления адреса в мониторинг
@@ -166,7 +166,7 @@ impl SubscriptionManager {
                 let message = ServerMessage::TransactionTrace {
                     subscription_id: subscription.id.clone(),
                     address: event.address.clone(),
-                    trace: trace.clone(),
+                    trace: Box::new(trace.clone()),
                 };
 
                 if let Err(_) = subscription.sender.send(message) {

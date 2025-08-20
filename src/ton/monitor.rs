@@ -1,14 +1,12 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread::sleep;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{interval, Duration, Instant};
 use tracing::{debug, error, info, warn};
 
 use super::client::TonService;
 use super::trace::TraceService;
-use crate::websocket::message::TransactionTrace;
 
 /// Событие о новой транзакции
 #[derive(Debug, Clone)]
@@ -131,12 +129,6 @@ impl TransactionMonitor {
         }
     }
 
-    /// Получает список мониторинговых адресов
-    pub async fn get_monitored_addresses(&self) -> Vec<String> {
-        let addresses = self.monitored_addresses.read().await;
-        addresses.keys().cloned().collect()
-    }
-
     /// Проверяет новые транзакции для всех мониторинговых адресов
     async fn check_transactions(&self) -> Result<()> {
         let addresses = {
@@ -166,21 +158,10 @@ impl TransactionMonitor {
         address: &str,
         monitor: &AddressMonitor,
     ) -> Result<()> {
-        // Преобразуем last_lt в u64 для совместимости с существующим API
-        let from_lt = if monitor.last_lt > 0 {
-            Some(monitor.last_lt as u64)
-        } else {
-            None
-        };
-
-        let transactions = self
-            .ton_service
-            .get_transactions(address, from_lt, 15)
-            .await?;
+        let transactions = self.ton_service.get_transactions(address).await?;
 
         let mut new_transactions = Vec::new();
         let mut max_lt = monitor.last_lt;
-        info!("Max_LT: {}", max_lt);
 
         // Фильтруем новые транзакции
         for tx in transactions {
@@ -229,17 +210,11 @@ impl TransactionMonitor {
 
     /// Получает последнюю логическую временную метку для адреса
     async fn get_last_lt_for_address(&self, address: &str) -> Result<i64> {
-        let transactions = self.ton_service.get_transactions(address, None, 1).await?;
+        let transactions = self.ton_service.get_transactions(address).await?;
 
         Ok(transactions
             .first()
             .map(|tx| tx.transaction_id.lt)
             .unwrap_or(0))
-    }
-
-    /// Получает количество мониторинговых адресов
-    pub async fn get_monitor_count(&self) -> usize {
-        let addresses = self.monitored_addresses.read().await;
-        addresses.len()
     }
 }

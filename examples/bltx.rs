@@ -1,12 +1,10 @@
 use tonlib_client::client::TonClient;
 use tonlib_client::client::TonClientInterface;
 use tonlib_client::tl::BlockId;
-use tonlib_client::tl::BlocksMasterchainInfo;
 use tonlib_client::tl::BlocksShards;
 use tonlib_client::tl::BlocksTransactions;
 use tonlib_client::tl::InternalTransactionId;
 use tonlib_client::tl::NULL_BLOCKS_ACCOUNT_TRANSACTION_ID;
-use tonlib_core::types::ZERO_HASH;
 use tonlib_core::TonAddress;
 use tonlib_core::TonHash;
 
@@ -29,7 +27,7 @@ async fn call_blockchain_methods() -> anyhow::Result<()> {
         println!("Processing shard: {:?}", shard);
         let workchain = shard.workchain;
         let txs: BlocksTransactions = client
-            .get_block_transactions(&shard, 7, 1024, &NULL_BLOCKS_ACCOUNT_TRANSACTION_ID)
+            .get_block_transactions(shard, 7, 1024, &NULL_BLOCKS_ACCOUNT_TRANSACTION_ID)
             .await?;
         println!(
             "Number of transactions: {}, incomplete: {}",
