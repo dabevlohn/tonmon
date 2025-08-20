@@ -50,7 +50,7 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> Result<()> {
     // Инициализация логирования
-    console_subscriber::init();
+    // console_subscriber::init();
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
@@ -106,7 +106,10 @@ async fn main() -> Result<()> {
     });
     let tonapi_key = std::env::var("TONAPI_KEY").ok();
 
-    info!("🔍 TonAPI endpoint: {}", tonapi_endpoint);
+    info!(
+        "🔍 TonAPI endpoint: {}, key: {:?}",
+        tonapi_endpoint, tonapi_key
+    );
     let trace_service = Arc::new(TraceService::new(tonapi_endpoint, tonapi_key));
 
     // Создаем каналы для событий

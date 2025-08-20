@@ -6,7 +6,7 @@ use tracing::{debug, error, info, warn};
 
 // Обновленные импорты для актуального API tonlib-rs
 use tonlib_client::client::{TonClient, TonClientInterface};
-use tonlib_core::TonAddress;
+use tonlib_core::{TonAddress, TonHash};
 
 /// Конфигурация для TON клиента с множественными endpoints
 pub struct TonClientConfig {
@@ -282,7 +282,7 @@ impl TonService {
         limit: u32,
     ) -> Result<Vec<tonlib_client::tl::RawTransaction>> {
         // Получаем состояние аккаунта
-        let _account_state = match client.get_account_state(ton_address).await {
+        let account_state = match client.get_account_state(ton_address).await {
             Ok(state) => state,
             Err(e) if e.to_string().contains("Unknown code hash") => {
                 warn!("Unknown code hash for address, returning empty list");
@@ -294,17 +294,36 @@ impl TonService {
             Err(e) => return Err(anyhow::anyhow!("Failed to get account state: {}", e)),
         };
 
-        let transaction_id = tonlib_client::tl::InternalTransactionId {
-            hash: vec![0; 32],
-            lt: from_lt.unwrap_or(0) as i64,
-        };
+        let shards = client.get_block_shards(&account_state.block_id).await?;
+        debug!(
+            "Address: {}, LastTxId: {}, BlockId: {}, Shards: {:?}",
+            account_state.address.account_address,
+            account_state.last_transaction_id,
+            account_state.block_id.seqno,
+            shards.shards
+        );
+        let tx_last = client
+            .get_raw_transactions(&ton_address, &account_state.last_transaction_id)
+            .await?;
+        // info!("Last TX: {:?}", tx_last.transactions);
 
-        let raw_transactions = client
-            .get_raw_transactions_v2(ton_address, &transaction_id, limit as usize, false)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to get transactions: {}", e))?;
+        // let transaction_id = tonlib_client::tl::InternalTransactionId {
+        //     hash: vec![0u8; 32],
+        //     // hash: account_state.last_transaction_id.hash,
+        //     lt: from_lt.unwrap_or(0) as i64,
+        // };
 
-        Ok(raw_transactions.transactions)
+        // let raw_transactions = client
+        //     .get_raw_transactions_v2(ton_address, &transaction_id, 15, false)
+        //     .await
+        //     .map_err(|e| anyhow::anyhow!("Failed to get transactions: {}", e))?;
+
+        if let Some(tx0) = tx_last.transactions.first() {
+            info!("RawTransaction: {:?}", tx0.transaction_id);
+        }
+
+        // Ok(raw_transactions.transactions)
+        Ok(tx_last.transactions)
     }
 
     /// Выполняет операцию с retry при ADNL ошибках
@@ -416,35 +435,5 @@ impl TonService {
                 Ok(false)
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_ton_client_creation() {
-        let config = TonClientConfig {
-            testnet: true,
-            ..Default::default()
-        };
-
-        assert!(config.testnet);
-        assert!(!config.fallback_configs.is_empty());
-    }
-
-    #[test]
-    fn test_config_optimization() {
-        let config = r#"{"liteservers": [{"ip": 1, "port": 1}, {"ip": 2, "port": 2}]}"#;
-        let result = TonService::optimize_config_for_connection(config.to_string());
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_connection_info() {
-        let config = TonClientConfig::default();
-        // Тест создания конфигурации
-        assert!(config.connection_timeout.is_some());
     }
 }

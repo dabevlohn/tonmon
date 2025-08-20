@@ -3,12 +3,12 @@ use dashmap::DashMap;
 use serde::Serialize; // Добавляем импорт Serialize
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{info, warn, error, debug};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::websocket::message::{ServerMessage, TransactionTrace};
 use crate::ton::monitor::TransactionEvent;
 use crate::ton::trace::TraceService;
+use crate::websocket::message::{ServerMessage, TransactionTrace};
 
 /// Информация о подписке
 #[derive(Debug, Clone)]
@@ -64,7 +64,8 @@ impl SubscriptionManager {
         };
 
         // Добавляем подписку
-        self.subscriptions.insert(subscription_id.clone(), subscription);
+        self.subscriptions
+            .insert(subscription_id.clone(), subscription);
 
         // Добавляем в индекс по адресам
         self.address_subscriptions
@@ -73,11 +74,17 @@ impl SubscriptionManager {
             .push(subscription_id.clone());
 
         // Отправляем событие для добавления адреса в мониторинг
-        if let Err(e) = self.monitor_event_sender.send(MonitorEvent::AddAddress(address.clone())) {
+        if let Err(e) = self
+            .monitor_event_sender
+            .send(MonitorEvent::AddAddress(address.clone()))
+        {
             error!("Failed to send monitor event: {}", e);
         }
 
-        info!("Created subscription {} for address {}", subscription_id, address);
+        info!(
+            "Created subscription {} for address {}",
+            subscription_id, address
+        );
         Ok(subscription_id)
     }
 
@@ -94,15 +101,24 @@ impl SubscriptionManager {
                 if subs.is_empty() {
                     self.address_subscriptions.remove(&address);
 
-                    if let Err(e) = self.monitor_event_sender.send(MonitorEvent::RemoveAddress(address.clone())) {
+                    if let Err(e) = self
+                        .monitor_event_sender
+                        .send(MonitorEvent::RemoveAddress(address.clone()))
+                    {
                         error!("Failed to send monitor remove event: {}", e);
                     }
                 }
             }
 
-            info!("Removed subscription {} for address {}", subscription_id, address);
+            info!(
+                "Removed subscription {} for address {}",
+                subscription_id, address
+            );
         } else {
-            warn!("Attempted to remove non-existent subscription: {}", subscription_id);
+            warn!(
+                "Attempted to remove non-existent subscription: {}",
+                subscription_id
+            );
         }
 
         Ok(())
@@ -121,16 +137,26 @@ impl SubscriptionManager {
         };
 
         // Получаем трейс транзакции
-        let trace = match self.trace_service.get_transaction_trace(&event.transaction_hash).await {
+        let trace = match self
+            .trace_service
+            .get_transaction_trace(&event.transaction_hash)
+            .await
+        {
             Ok(trace) => trace,
             Err(e) => {
-                error!("Failed to get trace for transaction {}: {}", event.transaction_hash, e);
+                error!(
+                    "Failed to get trace for transaction {}: {}",
+                    event.transaction_hash, e
+                );
                 return Err(e);
             }
         };
 
-        info!("Got trace for transaction {} with {} children", 
-              event.transaction_hash, trace.children.len());
+        info!(
+            "Got trace for transaction {} with {} children",
+            event.transaction_hash,
+            trace.children.len()
+        );
 
         // Отправляем трейс всем подписчикам
         let mut failed_subscriptions = Vec::new();
@@ -161,7 +187,11 @@ impl SubscriptionManager {
     }
 
     /// Отправляет сообщение конкретной подписке
-    pub async fn send_to_subscription(&self, subscription_id: &str, message: ServerMessage) -> Result<()> {
+    pub async fn send_to_subscription(
+        &self,
+        subscription_id: &str,
+        message: ServerMessage,
+    ) -> Result<()> {
         if let Some(subscription) = self.subscriptions.get(subscription_id) {
             if let Err(_) = subscription.sender.send(message) {
                 // Соединение закрыто, удаляем подписку
@@ -169,7 +199,10 @@ impl SubscriptionManager {
                 return Err(anyhow::anyhow!("Subscription connection closed"));
             }
         } else {
-            return Err(anyhow::anyhow!("Subscription not found: {}", subscription_id));
+            return Err(anyhow::anyhow!(
+                "Subscription not found: {}",
+                subscription_id
+            ));
         }
 
         Ok(())
@@ -190,7 +223,9 @@ impl SubscriptionManager {
         SubscriptionStats {
             total_subscriptions: self.subscriptions.len(),
             monitored_addresses: self.address_subscriptions.len(),
-            addresses: self.address_subscriptions.iter()
+            addresses: self
+                .address_subscriptions
+                .iter()
                 .map(|entry| AddressStats {
                     address: entry.key().clone(),
                     subscription_count: entry.value().len(),
@@ -243,10 +278,12 @@ mod tests {
         let manager = SubscriptionManager::new(trace_service, monitor_tx);
 
         let (sub_tx, _sub_rx) = mpsc::unbounded_channel();
-        let result = manager.create_subscription(
-            "EQD3o5h_LmFwcSXvZWuOy9W9y7cE3I4n2Ni0kxqTNPhjj5yt".to_string(),
-            sub_tx,
-        ).await;
+        let result = manager
+            .create_subscription(
+                "EQD3o5h_LmFwcSXvZWuOy9W9y7cE3I4n2Ni0kxqTNPhjj5yt".to_string(),
+                sub_tx,
+            )
+            .await;
 
         assert!(result.is_ok());
         assert_eq!(manager.get_subscription_count(), 1);
@@ -259,10 +296,13 @@ mod tests {
         let manager = SubscriptionManager::new(trace_service, monitor_tx);
 
         let (sub_tx, _sub_rx) = mpsc::unbounded_channel();
-        let subscription_id = manager.create_subscription(
-            "EQD3o5h_LmFwcSXvZWuOy9W9y7cE3I4n2Ni0kxqTNPhjj5yt".to_string(),
-            sub_tx,
-        ).await.unwrap();
+        let subscription_id = manager
+            .create_subscription(
+                "EQD3o5h_LmFwcSXvZWuOy9W9y7cE3I4n2Ni0kxqTNPhjj5yt".to_string(),
+                sub_tx,
+            )
+            .await
+            .unwrap();
 
         assert_eq!(manager.get_subscription_count(), 1);
 

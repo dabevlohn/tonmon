@@ -62,6 +62,7 @@ impl TraceService {
 
         // Добавляем API ключ если есть
         if let Some(api_key) = &self.api_key {
+            info!("API Key: {}", api_key);
             request = request.header("Authorization", format!("Bearer {}", api_key));
         }
 

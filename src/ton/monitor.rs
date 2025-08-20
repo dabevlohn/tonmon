@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::thread::sleep;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{interval, Duration, Instant};
 use tracing::{debug, error, info, warn};
@@ -22,7 +23,7 @@ pub struct TransactionEvent {
 #[derive(Debug, Clone)]
 struct AddressMonitor {
     pub address: String,
-    pub last_lt: i64, // Изменил на i64 согласно API tonlib-rs
+    pub last_lt: i64,
     pub last_check: Instant,
     pub subscription_count: u32,
 }
@@ -59,8 +60,6 @@ impl TransactionMonitor {
 
         loop {
             ticker.tick().await;
-
-            debug!("Let's check transactions!");
 
             if let Err(e) = self.check_transactions().await {
                 error!("Error checking transactions: {}", e);
@@ -181,6 +180,7 @@ impl TransactionMonitor {
 
         let mut new_transactions = Vec::new();
         let mut max_lt = monitor.last_lt;
+        info!("Max_LT: {}", max_lt);
 
         // Фильтруем новые транзакции
         for tx in transactions {

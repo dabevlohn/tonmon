@@ -2833,9 +2833,9 @@ dependencies = [
 
 [[package]]
 name = "tonlib-client"
-version = "0.26.1"
+version = "0.25.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47a43b7b3b330821d33692ea47e184e9fd6c69089e25377d3ee6227c85cbdb11"
+checksum = "313d8e270205f309bf571150d89f1175ed9123720751ecc7b9fa84522a17894f"
 dependencies = [
  "adnl",
  "anyhow",
@@ -2872,9 +2872,9 @@ dependencies = [
 
 [[package]]
 name = "tonlib-core"
-version = "0.26.1"
+version = "0.25.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "482280c643d2a46d9fe94b4aa27b6a2f2e6a3dd10afc61277b032d1976d0433e"
+checksum = "274d37db7030ec4158b6ad6106d1edbb3cc3e021c038bcc0fd45859f34633895"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2895,9 +2895,9 @@ dependencies = [
 
 [[package]]
 name = "tonlib-sys"
-version = "2025.6.0"
+version = "2025.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "300ea0d75c01f7785bf4cad4cc8697ff643432ab35d5449a1e945b64b5cc0002"
+checksum = "6fd1bdaa37e33c71c81f9430e74fc1bd8f55ab6378797b66a67598da8353e400"
 dependencies = [
  "cmake",
 ]
